@@ -1,24 +1,32 @@
 const DEFAULT_REQUIREMENTS = `Proposal must include:
 - Project title
 - Abstract
-- Motivation and gap
+- Keywords
+- Motivation, gap, and target context
+- Novelty and relation to prior work
 - Project goal
 - Method or agent workflow
 - Figure or diagram with caption
-- Expected results
-- Research milestones with timeline estimates
+- Expected results and research milestones with timeline estimates
 - Evaluation plan
 - Risks and mitigation
-- Resources or budget
+- Resources, tools, or release plan
 - References, assumptions, or source notes`;
 
 const EMPTY_PROJECT_FOR_SERVER = {
   title: '',
   topic: '',
+  keywords: '',
+  abstract: '',
   problem: '',
+  novelty: '',
+  goal: '',
   method: '',
+  figure: '',
+  expectedResults: '',
   timeline: '',
   evaluation: '',
+  risks: '',
   resources: '',
   references: '',
   requirements: DEFAULT_REQUIREMENTS
@@ -37,21 +45,60 @@ Return strict JSON with this shape:
       "fix": "short next action"
     }
   ],
-  "evaluationReport": "plain text or Markdown report with missing items, weak claims, timeline risks, and revision priorities",
+  "weakClaims": [
+    {
+      "claim": "exact unsupported or vague claim from the draft",
+      "severity": "High | Medium | Low",
+      "issue": "why it is weak (no source, vague comparative, missing metric)",
+      "fix": "concrete revision that grounds or scopes the claim"
+    }
+  ],
+  "evaluationReport": "plain text or Markdown report with covered count, missing items, weak claims, timeline risks, and prioritized revision actions",
   "questions": ["short clarifying question"]
 }
 
 Rules:
 - The proposal artifact must be LaTeX, not Markdown.
 - Return a complete LaTeX document with \\documentclass[11pt]{article}, 1-inch margins, title, sections, and bibliography/source notes.
+- Cover every required section explicitly: Title, Abstract, Keywords, Introduction (motivation + gap + target context), Novelty and relation to prior work, Goal, Methods (agent workflow with stages, inputs, outputs, feedback loop, revision loop, stopping criteria), Figure with caption, Expected results and milestones, Evaluation, Risks and mitigation, Resources, References/assumptions.
 - Use compile-safe LaTeX. Avoid minted, shell-escape, external images, custom fonts, or packages that require extra system tools.
 - Do not use \\includegraphics or reference external image files. Build figures directly in LaTeX with text boxes, minipages, tabular layouts, lists, or simple arrows.
 - Write the final artifact as a research proposal, not as a short course implementation report.
 - Keep the proposed research plan credible, appropriately scoped, and supported by milestones, resources, risks, and evaluation criteria.
-- Mark unsupported claims as assumptions.
+- The Novelty section must name relevant prior work or comparable tools and state precisely what is new or different.
+- Mark unsupported claims as assumptions. Never state vague comparatives like "better" or "state of the art" without a source or a metric.
 - Include a concrete agent workflow when the method involves an agent.
-- Include at least one LaTeX-native figure, diagram, workflow chart, or architecture sketch with a caption.
-- Do not invent citations. Use source notes or assumptions when sources are missing.`;
+- Include at least one LaTeX-native figure, diagram, workflow chart, or architecture sketch with a caption referenced in the text.
+- Do not invent citations. Do NOT use \\cite, \\bibliography, or BibTeX. Write references as a plain list (author, title, venue, year) in the References section.
+- Do NOT use math-only symbols in normal text. Use plain words (write "to" instead of an arrow) or wrap math in $...$. Never place \\rightarrow, Greek letters, or subscripts/superscripts (_ or ^) in plain text.`;
+
+const REVISE_SYSTEM_PROMPT = `You are the revision step of a research proposal agent.
+
+You receive the current project state, the previous LaTeX draft, and a list of selected weaknesses or student feedback. Produce a revised draft that fixes the selected items without dropping previously covered sections.
+
+Return strict JSON with this shape:
+{
+  "proposalLatex": "complete, compile-ready revised LaTeX source",
+  "complianceMatrix": [
+    { "requirement": "requirement text", "status": "Covered | Needs work", "evidence": "short evidence", "fix": "short next action" }
+  ],
+  "weakClaims": [
+    { "claim": "remaining weak claim or empty if resolved", "severity": "High | Medium | Low", "issue": "why", "fix": "how" }
+  ],
+  "changelog": [
+    { "section": "section name", "before": "short summary of old text", "after": "short summary of revised text", "reason": "which weakness or feedback this addresses" }
+  ],
+  "evaluationReport": "plain text or Markdown report describing what improved and what still needs work",
+  "questions": ["short remaining clarifying question"]
+}
+
+Rules:
+- Keep the same LaTeX format rules as the drafting step (11pt, 1-inch margins, compile-safe, no external images).
+- Only change what the selected weaknesses and feedback require; preserve already-strong sections.
+- Each changelog entry must map to a selected weakness or to the student feedback.
+- Strengthen novelty, evaluation metrics, and unsupported claims first when they are selected.
+- Do not invent citations; mark unsupported claims as assumptions. Do NOT use \\cite or \\bibliography; write references as a plain list.
+- Do NOT use math-only symbols in normal text (no \\rightarrow, Greek letters, or _/^ outside $...$); use plain words or wrap math in $...$.`;
 
 const QUESTION_SYSTEM_PROMPT = `You are running an interactive proposal-agent workflow.
 
@@ -59,16 +106,23 @@ Return strict JSON:
 {
   "project": {
     "title": "",
+    "keywords": "",
+    "abstract": "",
     "problem": "",
+    "novelty": "",
+    "goal": "",
     "method": "",
+    "figure": "",
+    "expectedResults": "",
     "timeline": "",
     "evaluation": "",
+    "risks": "",
     "resources": "",
     "references": ""
   },
   "fieldSuggestions": [
     {
-      "field": "title | problem | method | timeline | evaluation | resources | references",
+      "field": "title | keywords | abstract | problem | novelty | goal | method | figure | expectedResults | timeline | evaluation | risks | resources | references",
       "label": "human-readable label",
       "value": "specific suggested content",
       "confidence": "High | Medium | Low",
@@ -79,7 +133,7 @@ Return strict JSON:
     {
       "id": "short-stable-id",
       "title": "decision title",
-      "field": "problem | method | timeline | evaluation | resources | references",
+      "field": "problem | novelty | goal | method | evaluation | risks | timeline | resources | references",
       "question": "context-aware decision prompt",
       "options": [
         {
@@ -92,7 +146,7 @@ Return strict JSON:
   ],
   "questions": [
     {
-      "field": "problem | method | evaluation | timeline | resources | references",
+      "field": "problem | novelty | goal | method | figure | expectedResults | evaluation | risks | timeline | resources | references",
       "question": "one concise question",
       "reason": "why this answer matters",
       "priority": "High | Medium | Low"
@@ -100,6 +154,8 @@ Return strict JSON:
   ],
   "updates": ["short state update"]
 }
+
+The novelty field must connect the idea to prior work or comparable tools and state what is new. Keywords should be 4-6 comma-separated terms. The figure field should describe what a workflow/architecture/evaluation diagram would show plus a caption.
 
 First infer concrete proposal data from the rough idea. Give the user suggested data and selectable options before asking open-ended questions. Ask open-ended questions only for information that cannot be reasonably inferred.`;
 
@@ -203,6 +259,180 @@ export async function generateProposal(payload) {
   }
 
   return generateLocally(project, checklist);
+}
+
+export async function reviseProposal(payload) {
+  const project = normalizePayload(payload);
+  const requirements = project.requirements || DEFAULT_REQUIREMENTS;
+  const checklist = extractChecklist(requirements);
+  const previousLatex = clean(payload.previousLatex);
+  const selectedWeaknesses = Array.isArray(payload.selectedWeaknesses)
+    ? payload.selectedWeaknesses.map((item) => (typeof item === 'string' ? { claim: clean(item) } : {
+        claim: clean(item.claim),
+        severity: clean(item.severity),
+        issue: clean(item.issue),
+        fix: clean(item.fix),
+        field: clean(item.field)
+      }))
+    : [];
+  const feedback = clean(payload.feedback);
+  const beforeCoverage = computeCoverage(buildComplianceMatrix(project, checklist));
+
+  if (process.env.LLM_API_KEY && process.env.LLM_API_URL) {
+    return reviseWithApi({ project, checklist, previousLatex, selectedWeaknesses, feedback, beforeCoverage });
+  }
+
+  return reviseLocally({ project, checklist, selectedWeaknesses, feedback, beforeCoverage });
+}
+
+async function reviseWithApi({ project, checklist, previousLatex, selectedWeaknesses, feedback, beforeCoverage }) {
+  const model = clean(process.env.LLM_MODEL);
+
+  if (!model) {
+    throw new Error('LLM_MODEL is required when LLM_API_KEY and LLM_API_URL are configured.');
+  }
+
+  const promptPayload = {
+    project,
+    checklist,
+    previousLatex,
+    selectedWeaknesses,
+    feedback,
+    outputContract: {
+      proposalLatex: 'Complete compile-ready revised LaTeX',
+      complianceMatrix: 'Array of requirement coverage rows',
+      weakClaims: 'Remaining weak claims',
+      changelog: 'What changed and why, mapped to weaknesses',
+      evaluationReport: 'What improved and what remains',
+      questions: 'Remaining clarifying questions'
+    }
+  };
+
+  const content = await callModel({
+    systemPrompt: REVISE_SYSTEM_PROMPT,
+    payload: promptPayload,
+    model,
+    temperature: 0.2
+  });
+  const parsed = parseJsonContent(content);
+  const coerced = coerceResult(parsed, project, checklist);
+
+  return {
+    mode: 'api',
+    provider: process.env.LLM_API_URL,
+    ...coerced,
+    beforeCoverage,
+    transcript: {
+      prompt: promptPayload,
+      rawResponse: content
+    }
+  };
+}
+
+function reviseLocally({ project, checklist, selectedWeaknesses, feedback, beforeCoverage }) {
+  const nextProject = { ...project };
+  const defaults = buildFieldSuggestions({ ...project, title: project.title, topic: project.topic });
+  const defaultByField = new Map(defaults.map((item) => [item.field, item.value]));
+  const changelog = [];
+
+  const fillField = (field, reason) => {
+    if (!Object.hasOwn(nextProject, field)) return;
+    if (clean(nextProject[field])) return;
+    const value = defaultByField.get(field);
+    if (!value) return;
+    nextProject[field] = value;
+    changelog.push({
+      section: labelForField(field),
+      before: 'Missing or too thin.',
+      after: `${value.slice(0, 120)}${value.length > 120 ? '…' : ''}`,
+      reason
+    });
+  };
+
+  selectedWeaknesses.forEach((weakness) => {
+    const field = clean(weakness.field) || inferFieldFromText(`${weakness.claim} ${weakness.issue}`);
+    if (field) fillField(field, weakness.fix || `Resolve weakness: ${weakness.claim}`);
+  });
+
+  ['novelty', 'goal', 'keywords', 'abstract', 'figure', 'expectedResults', 'risks', 'evaluation', 'references']
+    .forEach((field) => fillField(field, 'Filled a missing required section during the revision loop.'));
+
+  if (feedback) {
+    const field = inferFieldFromText(feedback) || 'method';
+    nextProject[field] = mergeField(nextProject[field], feedback);
+    changelog.push({
+      section: labelForField(field),
+      before: 'Before student feedback.',
+      after: `Incorporated: ${feedback.slice(0, 120)}${feedback.length > 120 ? '…' : ''}`,
+      reason: 'Applied student feedback from the revision panel.'
+    });
+  }
+
+  const proposalLatex = buildLocalProposalLatex(nextProject);
+  const complianceMatrix = buildComplianceMatrix(nextProject, checklist);
+  const weakClaims = detectWeakClaims(nextProject, complianceMatrix);
+  const coverage = computeCoverage(complianceMatrix);
+  const questions = buildQuestions(nextProject);
+  const needsWork = complianceMatrix.filter((row) => row.status === 'Needs work');
+
+  if (!changelog.length) {
+    changelog.push({
+      section: 'No change',
+      before: 'Draft already covered all detected sections.',
+      after: 'No automatic revision was required.',
+      reason: 'The fallback reviser found nothing missing to fill.'
+    });
+  }
+
+  const evaluationReport = `${buildEvaluationReport({
+    mode: 'local deterministic revision',
+    coverage,
+    needsWork,
+    weakClaims,
+    questions
+  })}
+
+## Coverage Change
+- Before: ${beforeCoverage.covered}/${beforeCoverage.total}
+- After: ${coverage.covered}/${coverage.total}
+`;
+
+  return {
+    mode: 'local-fallback',
+    provider: 'template',
+    project: nextProject,
+    proposalLatex,
+    complianceMatrix,
+    weakClaims,
+    coverage,
+    beforeCoverage,
+    changelog,
+    evaluationReport,
+    questions,
+    transcript: {
+      prompt: { task: 'revise', project, selectedWeaknesses, feedback, checklist },
+      rawResponse: 'Revised by local fallback because LLM_API_KEY or LLM_API_URL is not configured.'
+    }
+  };
+}
+
+function inferFieldFromText(text) {
+  const value = clean(text).toLowerCase();
+  if (!value) return '';
+  if (/novel|prior work|state of the art|differen|compar/.test(value)) return 'novelty';
+  if (/keyword/.test(value)) return 'keywords';
+  if (/abstract/.test(value)) return 'abstract';
+  if (/goal|objective/.test(value)) return 'goal';
+  if (/figure|diagram/.test(value)) return 'figure';
+  if (/expected result|outcome/.test(value)) return 'expectedResults';
+  if (/risk|mitigation/.test(value)) return 'risks';
+  if (/eval|metric|test|measure/.test(value)) return 'evaluation';
+  if (/milestone|timeline|schedule|phase/.test(value)) return 'timeline';
+  if (/resource|budget|tool|release/.test(value)) return 'resources';
+  if (/reference|source|citation|assumption/.test(value)) return 'references';
+  if (/method|workflow|approach|stage/.test(value)) return 'method';
+  if (/problem|motivation|gap|user|context/.test(value)) return 'problem';
+  return '';
 }
 
 async function refineProjectWithApi(payload) {
@@ -355,10 +585,8 @@ async function callOpenAiCompatible({ systemPrompt, payload, model, temperature 
   return readModelContent(data);
 }
 
-function generateLocally(project, checklist) {
-  const questions = buildQuestions(project);
-  const proposalLatex = buildLocalProposalLatex(project);
-  const complianceMatrix = checklist.map((requirement) => {
+function buildComplianceMatrix(project, checklist) {
+  return checklist.map((requirement) => {
     const evidence = findRequirementEvidence(requirement, project);
 
     return {
@@ -368,27 +596,31 @@ function generateLocally(project, checklist) {
       fix: evidence ? 'Keep this section specific.' : `Add concrete detail for: ${requirement}.`
     };
   });
+}
+
+function generateLocally(project, checklist) {
+  const questions = buildQuestions(project);
+  const proposalLatex = buildLocalProposalLatex(project);
+  const complianceMatrix = buildComplianceMatrix(project, checklist);
 
   const needsWork = complianceMatrix.filter((row) => row.status === 'Needs work');
-  const evaluationReport = `# Evaluation Report
-
-## Summary
-- Mode: local deterministic fallback.
-- Covered requirements: ${complianceMatrix.length - needsWork.length}/${complianceMatrix.length}.
-- Remaining questions: ${questions.length}.
-
-## Weak Claims And Risks
-${needsWork.length ? needsWork.map((row) => `- ${row.requirement}: ${row.fix}`).join('\n') : '- No missing checklist items detected by the fallback checker.'}
-
-## Revision Priorities
-${questions.length ? questions.map((question) => `- ${question}`).join('\n') : '- Draft is ready for API-backed review or human revision.'}
-`;
+  const weakClaims = detectWeakClaims(project, complianceMatrix);
+  const coverage = computeCoverage(complianceMatrix);
+  const evaluationReport = buildEvaluationReport({
+    mode: 'local deterministic fallback',
+    coverage,
+    needsWork,
+    weakClaims,
+    questions
+  });
 
   return {
     mode: 'local-fallback',
     provider: 'template',
     proposalLatex,
     complianceMatrix,
+    weakClaims,
+    coverage,
     evaluationReport,
     questions,
     transcript: {
@@ -398,12 +630,122 @@ ${questions.length ? questions.map((question) => `- ${question}`).join('\n') : '
   };
 }
 
+function computeCoverage(complianceMatrix) {
+  const total = complianceMatrix.length;
+  const covered = complianceMatrix.filter((row) => /^covered$/i.test(clean(row.status))).length;
+  return { covered, total };
+}
+
+function detectWeakClaims(project, complianceMatrix) {
+  const claims = [];
+  const text = [
+    project.problem,
+    project.novelty,
+    project.method,
+    project.evaluation,
+    project.expectedResults,
+    project.abstract
+  ]
+    .map(clean)
+    .filter(Boolean)
+    .join('\n');
+
+  const vaguePattern = /\b(better|best|state[- ]of[- ]the[- ]art|cutting[- ]edge|revolutionary|optimal|superior|most accurate|fastest|seamless|robust)\b/gi;
+  const seen = new Set();
+  let match;
+  while ((match = vaguePattern.exec(text)) !== null) {
+    const word = match[0].toLowerCase();
+    if (seen.has(word)) continue;
+    seen.add(word);
+    const start = Math.max(0, match.index - 30);
+    const snippet = text.slice(start, Math.min(text.length, match.index + 40)).replace(/\s+/g, ' ').trim();
+    claims.push({
+      claim: snippet,
+      severity: 'High',
+      issue: `Vague comparative "${match[0]}" without a source or metric.`,
+      fix: 'Replace with a measurable comparison or mark it as an assumption tied to a source.'
+    });
+  }
+
+  if (!clean(project.novelty)) {
+    claims.push({
+      claim: 'No explicit novelty or prior-work comparison.',
+      severity: 'High',
+      issue: 'Novelty and relation to prior work is the highest-weight section and is missing.',
+      fix: 'Name comparable tools or prior work and state what is new or different.'
+    });
+  }
+
+  if (!clean(project.references)) {
+    claims.push({
+      claim: 'No references, source notes, or assumptions section.',
+      severity: 'Medium',
+      issue: 'Unsupported claims must be grounded or marked as assumptions.',
+      fix: 'Add at least source notes or an explicit assumptions list.'
+    });
+  }
+
+  const needsWork = complianceMatrix.filter((row) => row.status === 'Needs work');
+  needsWork.forEach((row) => {
+    claims.push({
+      claim: `Missing required section: ${row.requirement}.`,
+      severity: 'Medium',
+      issue: 'Required section is not covered by the current project state.',
+      fix: row.fix || `Add concrete content for: ${row.requirement}.`
+    });
+  });
+
+  return dedupeWeakClaims(claims).slice(0, 10);
+}
+
+function dedupeWeakClaims(claims) {
+  const seen = new Set();
+  return claims.filter((item) => {
+    const key = clean(item.claim).toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildEvaluationReport({ mode, coverage, needsWork, weakClaims, questions }) {
+  const highClaims = weakClaims.filter((item) => /^high$/i.test(item.severity));
+  return `# Evaluation Report
+
+## Summary
+- Mode: ${mode}.
+- Covered requirements: ${coverage.covered}/${coverage.total}.
+- Weak or unsupported claims: ${weakClaims.length} (${highClaims.length} high severity).
+- Remaining questions: ${questions.length}.
+
+## Weak Claims And Risks
+${weakClaims.length ? weakClaims.map((item) => `- [${item.severity}] ${item.claim} -> ${item.fix}`).join('\n') : '- No weak claims detected by the checker.'}
+
+## Missing Required Sections
+${needsWork.length ? needsWork.map((row) => `- ${row.requirement}: ${row.fix}`).join('\n') : '- All required sections are covered.'}
+
+## Revision Priorities
+${questions.length ? questions.map((question) => `- ${typeof question === 'string' ? question : question.question}`).join('\n') : '- Draft is ready for human revision or finalization.'}
+`;
+}
+
 function buildLocalProposalLatex(project) {
-  const title = project.title || project.topic;
+  const title = project.title || project.topic || 'Research Proposal';
+  const keywords = project.keywords || 'research proposal, agent workflow, evaluation, human-in-the-loop';
+  const abstract =
+    project.abstract ||
+    `This proposal presents ${shortTopic(project.topic || title)}. It states the target problem and gap, summarizes the agent workflow used to produce the proposal, and describes how the work will be evaluated through requirement coverage and a documented revision loop.`;
   const problem = project.problem || 'The current problem is still underspecified and should be refined through clarifying questions.';
+  const novelty =
+    project.novelty ||
+    'Compared to general LLM chat or single-shot proposal generators, this workflow is staged and rubric-aware, with explicit critique and a revision loop. \\textbf{Assumption:} comparable tools do not check requirement coverage or produce before/after revision evidence.';
+  const goal = project.goal || 'Produce a complete, reviewable research proposal from a rough idea, with coverage checks and at least one documented revision loop.';
   const method = project.method || 'The agent workflow will collect a rough research direction, ask targeted clarification questions, update project state, draft a research proposal, check requirements, and revise weak sections.';
+  const figureCaption = project.figure || 'End-to-end agent workflow with a human-in-the-loop revision loop and explicit stopping criteria.';
+  const expected = project.expectedResults || 'A reproducible workflow that raises required-section coverage between the first and revised drafts and flags unsupported claims.';
   const evaluation = project.evaluation || 'Evaluate the first and revised drafts against section coverage, missing fields, weak claims, prior-work comparison, research milestones, and proposal-specific success criteria.';
   const timeline = project.timeline || 'Phase 1 literature and requirement review; Phase 2 workflow and method design; Phase 3 prototype or study setup; Phase 4 evaluation and analysis; Phase 5 final proposal revision and source notes.';
+  const risks = project.risks || 'API key missing: use deterministic fallback. Unsupported claims: mark as assumptions and request source notes. Scope too broad: narrow contribution, milestones, and evaluation criteria before drafting.';
   const resources = project.resources || 'This browser app, a local Node API service, an optional LLM API key, proposal-writing references, and source notes for unsupported claims.';
   const references = project.references || 'Course proposal requirements and demo scaffold. Additional claims are treated as assumptions.';
 
@@ -420,26 +762,31 @@ function buildLocalProposalLatex(project) {
 \maketitle
 
 \begin{abstract}
-This project builds a proposal agent that turns a rough research direction into a structured research proposal. The workflow collects project intent, calls an API-backed generator when configured, produces a LaTeX proposal draft, checks requirements, and lists revision questions.
+${latexParagraph(abstract)}
 \end{abstract}
 
-\section{Motivation and Gap}
+\noindent\textbf{Keywords:} ${escapeLatex(keywords)}
+
+\section{Introduction: Motivation and Gap}
 ${latexParagraph(problem)}
 
 Students often have partial ideas but need help converting them into proposal sections with clear methods, milestones, and evaluation criteria. \textbf{Assumption:} a lightweight guided workflow is sufficient for a useful classroom demo.
 
+\section{Novelty and Relation to Prior Work}
+${latexParagraph(novelty)}
+
 \section{Project Goal}
-Create a working proposal generator that can produce a LaTeX proposal, compliance matrix, evaluation report, and follow-up questions from a rough idea.
+${latexParagraph(goal)}
 
 \section{Method and Agent Workflow}
 ${latexParagraph(method)}
 
 \begin{enumerate}
-\item Capture topic, problem, method, timeline, evaluation plan, resources, and requirement text.
+\item Capture topic, problem, novelty, method, figure plan, milestones, evaluation, risks, resources, and requirement text.
 \item Send the structured state to the local API service.
 \item Use the configured LLM API when available; otherwise use a deterministic fallback.
-\item Return LaTeX source, requirement coverage, self-evaluation, and clarification questions.
-\item Compile \texttt{proposal.tex} into \texttt{proposal.pdf} with a LaTeX engine.
+\item Return LaTeX source, requirement coverage, weak-claim flags, self-evaluation, and clarification questions.
+\item Apply a revision loop until the stopping criteria are met, then compile \texttt{proposal.tex} into \texttt{proposal.pdf}.
 \end{enumerate}
 
 \section{Figure}
@@ -447,15 +794,15 @@ ${latexParagraph(method)}
 \centering
 \fbox{\begin{minipage}{0.9\linewidth}
 \centering
-Rough idea $\rightarrow$ structured suggestions $\rightarrow$ student decisions $\rightarrow$ accepted project state $\rightarrow$ LaTeX proposal $\rightarrow$ compliance review $\rightarrow$ revised PDF
+Rough idea $\rightarrow$ structured suggestions $\rightarrow$ student decisions $\rightarrow$ accepted project state $\rightarrow$ draft $\rightarrow$ compliance review $\rightarrow$ revision loop $\rightarrow$ final proposal
 \end{minipage}}
-\caption{Proposed workflow for turning a rough idea into a reviewed proposal artifact.}
+\caption{${escapeLatex(figureCaption)}}
 \end{figure}
 
 \section{Expected Results and Research Milestones}
-${latexParagraph(timeline)}
+${latexParagraph(expected)}
 
-Expected result: a reproducible workflow that can start from a rough research direction and produce proposal artifacts with explicit milestones, assumptions, and review evidence.
+${latexParagraph(timeline)}
 
 \section{Evaluation Plan}
 ${latexParagraph(evaluation)}
@@ -463,11 +810,7 @@ ${latexParagraph(evaluation)}
 Test cases include a complete idea, a missing-information idea, a requirement-check case, and a revision case after weak claims are flagged.
 
 \section{Risks and Mitigation}
-\begin{itemize}
-\item API key is missing: use deterministic fallback and document that mode.
-\item Generated claims are unsupported: mark them as assumptions and ask for source notes.
-\item Research scope becomes too broad: narrow the contribution, milestones, and evaluation criteria before drafting.
-\end{itemize}
+${latexParagraph(risks)}
 
 \section{Resources}
 ${latexParagraph(resources)}
@@ -500,6 +843,14 @@ function buildQuestionObjects(project) {
       'problem',
       'What concrete problem does this proposal solve, and who experiences it?',
       'The proposal needs a specific motivation and user or stakeholder.'
+    );
+  }
+
+  if (!isSpecific(project.novelty, 80)) {
+    add(
+      'novelty',
+      'What prior work or comparable tools exist, and what is new or different here?',
+      'Novelty and relation to prior work is the highest-weight section and must name comparisons.'
     );
   }
 
@@ -584,6 +935,24 @@ function buildFieldSuggestions(project) {
       reason: 'Use the rough idea as the working title so the proposal has a stable anchor.'
     },
     {
+      field: 'keywords',
+      label: 'Keywords',
+      value:
+        project.keywords ||
+        `${shortTopic(topic)}, agent workflow, research proposal, evaluation, human-in-the-loop`,
+      confidence: project.keywords ? 'High' : 'Medium',
+      reason: 'The required format asks for 4-6 keywords that index the proposal.'
+    },
+    {
+      field: 'abstract',
+      label: 'Abstract',
+      value:
+        project.abstract ||
+        `This proposal presents ${topic}. It states the target problem and gap, summarizes the method and agent workflow, and outlines how the work will be evaluated and why the outcome matters.`,
+      confidence: project.abstract ? 'High' : 'Medium',
+      reason: 'A short abstract anchors the rest of the proposal and is a required section.'
+    },
+    {
       field: 'problem',
       label: 'Problem Framing',
       value:
@@ -593,22 +962,67 @@ function buildFieldSuggestions(project) {
       reason: 'A proposal needs a concrete user pain point before method details are useful.'
     },
     {
+      field: 'novelty',
+      label: 'Novelty / Prior Work',
+      value:
+        project.novelty ||
+        `Unlike generic chat-based drafting or single-shot proposal generators, ${shortTopic(topic)} adds a staged, rubric-aware workflow with explicit critique and a revision loop. Assumption: comparable tools (general LLM chat, template fillers) do not check requirement coverage or produce before/after revision evidence.`,
+      confidence: project.novelty ? 'High' : 'Low',
+      reason: 'Novelty and relation to prior work is the single highest-weight section in the final rubric.'
+    },
+    {
+      field: 'goal',
+      label: 'Project Goal',
+      value:
+        project.goal ||
+        `Deliver a workflow that turns a rough idea about ${shortTopic(topic)} into a complete, reviewable research proposal with coverage checks and at least one documented revision loop.`,
+      confidence: project.goal ? 'High' : 'Medium',
+      reason: 'A crisp goal statement is a required section and frames the evaluation.'
+    },
+    {
       field: 'method',
       label: 'Method / Agent Workflow',
       value:
         project.method ||
-        'Build an agent workflow that extracts project state from a rough idea, presents suggested fields and decision options, accepts user edits, drafts a proposal, checks requirements, and revises weak sections.',
+        'Build an agent workflow that extracts project state from a rough idea, presents suggested fields and decision options, accepts user edits, drafts a proposal, checks requirements, and revises weak sections. Stages: intake, extract, decide, draft, critique-and-revise, finalize. Stopping criteria: all required sections covered, no high-severity unsupported claims, and at least one completed revision loop.',
       confidence: project.method ? 'High' : 'Medium',
       reason: 'The method should describe the agent process rather than only promising a final text draft.'
+    },
+    {
+      field: 'figure',
+      label: 'Figure Plan',
+      value:
+        project.figure ||
+        'A workflow diagram showing rough idea -> structured suggestions -> student decisions -> accepted state -> draft -> compliance review -> revision loop -> final proposal. Caption: end-to-end agent workflow with a human-in-the-loop revision loop and stopping criteria.',
+      confidence: project.figure ? 'High' : 'Medium',
+      reason: 'A referenced figure explaining the workflow or evaluation is worth dedicated points.'
+    },
+    {
+      field: 'expectedResults',
+      label: 'Expected Results',
+      value:
+        project.expectedResults ||
+        'A reproducible workflow that raises required-section coverage between the first and revised drafts, flags unsupported claims, and produces an auditable run trace as evidence.',
+      confidence: project.expectedResults ? 'High' : 'Medium',
+      reason: 'Expected results should be concrete outcomes tied to the evaluation.'
     },
     {
       field: 'evaluation',
       label: 'Evaluation Plan',
       value:
         project.evaluation ||
-        'Test complete, missing-info, requirement-check, unsupported-claim, and revision scenarios. Compare draft quality by checklist coverage, specificity, and whether weak claims are flagged.',
+        'Test complete, missing-info, requirement-check, unsupported-claim, and revision scenarios. Compare draft quality by checklist coverage, specificity, and whether weak claims are flagged. Metric: covered-section count and number of resolved weak claims before vs after revision.',
       confidence: project.evaluation ? 'High' : 'Medium',
       reason: 'The course proposal needs evidence that the workflow improves the artifact.'
+    },
+    {
+      field: 'risks',
+      label: 'Risks / Mitigation',
+      value:
+        project.risks ||
+        'Risk: the model invents citations -> mitigation: mark unsupported claims as assumptions and require source notes. Risk: scope too broad -> mitigation: narrow contribution and milestones before drafting. Risk: API unavailable -> mitigation: deterministic local fallback mode.',
+      confidence: project.risks ? 'High' : 'Medium',
+      reason: 'Risks with mitigations show feasibility and earn feasibility points.'
     },
     {
       field: 'timeline',
@@ -662,6 +1076,29 @@ function buildDecisionCards(project) {
           label: 'Scope control',
           value: `Students often choose research directions that are too broad or underspecified, so they need a workflow that narrows the idea into a credible proposal with explicit milestones and evaluation criteria.`,
           rationale: 'Best when feasibility, milestones, and research scope are the main risks.'
+        }
+      ]
+    },
+    {
+      id: 'novelty-angle',
+      title: 'Choose The Novelty Angle',
+      field: 'novelty',
+      question: 'How should the proposal position novelty against prior work?',
+      options: [
+        {
+          label: 'Workflow vs chat',
+          value: `Unlike one-shot LLM chat for ${topic}, this workflow is staged and rubric-aware, with explicit coverage checks and a revision loop. Assumption: general chat tools do not verify required-section coverage.`,
+          rationale: 'Best when the contribution is the structured process itself.'
+        },
+        {
+          label: 'Evaluation evidence',
+          value: `Comparable proposal helpers rarely produce before/after evidence. This project adds measurable coverage and weak-claim deltas across draft versions for ${topic}.`,
+          rationale: 'Best when measurable revision evidence is the differentiator.'
+        },
+        {
+          label: 'Domain grounding',
+          value: `Generic generators ignore domain sources. This project grounds ${topic} in named prior work and marks unsupported claims as assumptions.`,
+          rationale: 'Best when source grounding and citations matter most.'
         }
       ]
     },
@@ -786,10 +1223,17 @@ function keepOnlyAcceptedStartFields(originalProject, suggestedProject) {
 function labelForField(field) {
   const labels = {
     title: 'Project Title',
+    keywords: 'Keywords',
+    abstract: 'Abstract',
     problem: 'Problem Framing',
+    novelty: 'Novelty / Prior Work',
+    goal: 'Project Goal',
     method: 'Method / Agent Workflow',
+    figure: 'Figure Plan',
+    expectedResults: 'Expected Results',
     timeline: 'Research Milestones',
     evaluation: 'Evaluation Plan',
+    risks: 'Risks / Mitigation',
     resources: 'Resources',
     references: 'Sources / Assumptions'
   };
@@ -800,10 +1244,16 @@ function labelForField(field) {
 function summarizeProjectInput(project) {
   const fields = [
     ['Topic', project.title || project.topic],
+    ['Keywords', project.keywords],
     ['Problem', project.problem],
+    ['Novelty', project.novelty],
+    ['Goal', project.goal],
     ['Method', project.method],
+    ['Figure', project.figure],
+    ['Expected results', project.expectedResults],
     ['Timeline', project.timeline],
     ['Evaluation', project.evaluation],
+    ['Risks', project.risks],
     ['Resources', project.resources],
     ['References', project.references]
   ];
@@ -884,10 +1334,17 @@ function normalizePayload(payload) {
   return {
     topic: clean(payload.topic),
     title: clean(payload.title) || clean(payload.topic),
+    keywords: clean(payload.keywords),
+    abstract: clean(payload.abstract),
     problem: clean(payload.problem),
+    novelty: clean(payload.novelty),
+    goal: clean(payload.goal),
     method: clean(payload.method),
+    figure: clean(payload.figure),
+    expectedResults: clean(payload.expectedResults),
     timeline: clean(payload.timeline),
     evaluation: clean(payload.evaluation),
+    risks: clean(payload.risks),
     resources: clean(payload.resources),
     references: clean(payload.references),
     requirements: clean(payload.requirements) || DEFAULT_REQUIREMENTS
@@ -907,16 +1364,19 @@ function extractChecklist(requirements) {
 function findRequirementEvidence(requirement, project) {
   const text = requirement.toLowerCase();
 
-  if (/title/.test(text) && project.title) return project.title;
-  if (/abstract/.test(text)) return 'Draft includes an abstract section.';
-  if (/motivation|gap|problem/.test(text) && project.problem) return project.problem;
-  if (/goal/.test(text) && project.title) return 'Goal section is generated from the project topic.';
-  if (/method|workflow|approach/.test(text) && project.method) return project.method;
-  if (/expected|milestone|timeline/.test(text) && project.timeline) return project.timeline;
-  if (/evaluation|metric|test/.test(text) && project.evaluation) return project.evaluation;
-  if (/risk|mitigation/.test(text)) return 'Fallback draft includes risks and mitigations.';
-  if (/resource|budget|tool/.test(text) && project.resources) return project.resources;
-  if (/reference|assumption|source/.test(text) && project.references) return project.references;
+  if (/title/.test(text)) return project.title || '';
+  if (/keyword/.test(text)) return project.keywords || '';
+  if (/abstract/.test(text)) return project.abstract || '';
+  if (/novelty|prior work/.test(text)) return project.novelty || '';
+  if (/motivation|gap|problem|target context/.test(text)) return project.problem || '';
+  if (/goal/.test(text)) return project.goal || '';
+  if (/method|workflow|approach/.test(text)) return project.method || '';
+  if (/figure|diagram/.test(text)) return project.figure || '';
+  if (/expected|milestone|timeline/.test(text)) return project.expectedResults || project.timeline || '';
+  if (/evaluation|metric|test/.test(text)) return project.evaluation || '';
+  if (/risk|mitigation/.test(text)) return project.risks || '';
+  if (/resource|budget|tool|release/.test(text)) return project.resources || '';
+  if (/reference|assumption|source/.test(text)) return project.references || '';
 
   return '';
 }
@@ -959,24 +1419,57 @@ function parseJsonContent(content) {
 }
 
 function coerceResult(result, project, checklist) {
+  const complianceMatrix = Array.isArray(result.complianceMatrix) && result.complianceMatrix.length
+    ? result.complianceMatrix.map((row) => ({
+        requirement: clean(row.requirement),
+        status: clean(row.status) || 'Needs work',
+        evidence: clean(row.evidence),
+        fix: clean(row.fix)
+      }))
+    : checklist.map((requirement) => ({
+        requirement,
+        status: findRequirementEvidence(requirement, project) ? 'Covered' : 'Needs work',
+        evidence: findRequirementEvidence(requirement, project) || 'API did not provide matrix evidence.',
+        fix: 'Regenerate with stricter output instructions.'
+      }));
+
+  const weakClaims = normalizeWeakClaims(result.weakClaims);
+
   return {
     proposalLatex: extractProposalLatex(result, project),
-    complianceMatrix: Array.isArray(result.complianceMatrix) && result.complianceMatrix.length
-      ? result.complianceMatrix.map((row) => ({
-          requirement: clean(row.requirement),
-          status: clean(row.status) || 'Needs work',
-          evidence: clean(row.evidence),
-          fix: clean(row.fix)
-        }))
-      : checklist.map((requirement) => ({
-          requirement,
-          status: 'Needs work',
-          evidence: 'API did not provide matrix evidence.',
-          fix: 'Regenerate with stricter output instructions.'
-        })),
+    complianceMatrix,
+    weakClaims: weakClaims.length ? weakClaims : detectWeakClaims(project, complianceMatrix),
+    coverage: computeCoverage(complianceMatrix),
+    changelog: normalizeChangelog(result.changelog),
     evaluationReport: clean(result.evaluationReport) || '# Evaluation Report\n\nNo evaluation report returned.',
     questions: Array.isArray(result.questions) ? result.questions.map(clean).filter(Boolean).slice(0, 5) : []
   };
+}
+
+function normalizeWeakClaims(weakClaims) {
+  if (!Array.isArray(weakClaims)) return [];
+  return weakClaims
+    .map((item) => ({
+      claim: clean(item.claim),
+      severity: clean(item.severity) || 'Medium',
+      issue: clean(item.issue),
+      fix: clean(item.fix)
+    }))
+    .filter((item) => item.claim)
+    .slice(0, 10);
+}
+
+function normalizeChangelog(changelog) {
+  if (!Array.isArray(changelog)) return [];
+  return changelog
+    .map((item) => ({
+      section: clean(item.section),
+      before: clean(item.before),
+      after: clean(item.after),
+      reason: clean(item.reason)
+    }))
+    .filter((item) => item.section || item.after)
+    .slice(0, 20);
 }
 
 function extractProposalLatex(result, project) {
@@ -1103,4 +1596,10 @@ function titleCase(value) {
     .filter(Boolean)
     .map((word) => `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`)
     .join(' ');
+}
+
+function shortTopic(value) {
+  const words = clean(value).split(/\s+/).filter(Boolean);
+  if (!words.length) return 'the proposed system';
+  return words.slice(0, 8).join(' ');
 }

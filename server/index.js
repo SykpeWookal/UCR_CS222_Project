@@ -1,19 +1,27 @@
 import 'dotenv/config';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import express from 'express';
 import { proposalLatexToPdf } from './pdfExport.js';
-import { answerAgentQuestion, generateProposal, startAgentSession } from './proposalGenerator.js';
+import { answerAgentQuestion, generateProposal, reviseProposal, startAgentSession } from './proposalGenerator.js';
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
+const host = process.env.HOST || '0.0.0.0';
+const distDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
 app.use(cors({ origin: process.env.CORS_ORIGIN || true }));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/api/health', (_request, response) => {
+  const ready = Boolean(process.env.LLM_API_KEY && process.env.LLM_API_URL);
   response.json({
     ok: true,
-    mode: process.env.LLM_API_KEY ? 'api-ready' : 'local-fallback'
+    mode: ready ? 'api-ready' : 'local-fallback',
+    provider: ready ? process.env.LLM_PROVIDER || 'openai-compatible' : 'template',
+    model: ready ? process.env.LLM_MODEL || '' : ''
   });
 });
 
@@ -72,6 +80,25 @@ app.post('/api/proposal', async (request, response) => {
   }
 });
 
+app.post('/api/agent/revise', async (request, response) => {
+  try {
+    const payload = request.body || {};
+
+    if (!String(payload.topic || payload.title || '').trim()) {
+      response.status(400).json({ error: 'Topic is required.' });
+      return;
+    }
+
+    const result = await reviseProposal(payload);
+    response.json(result);
+  } catch (error) {
+    response.status(500).json({
+      error: 'Proposal revision failed.',
+      detail: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 app.post('/api/export/pdf', async (request, response) => {
   try {
     const payload = request.body || {};
@@ -96,6 +123,19 @@ app.post('/api/export/pdf', async (request, response) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Proposal API listening on http://127.0.0.1:${port}`);
+// Serve the built frontend (npm run build) so a single port can host both the
+// app and the API. This is the simplest path for a public tunnel / deployment.
+if (existsSync(distDir)) {
+  app.use(express.static(distDir));
+  app.use((request, response, next) => {
+    if (request.method === 'GET' && !request.path.startsWith('/api')) {
+      response.sendFile(path.join(distDir, 'index.html'));
+      return;
+    }
+    next();
+  });
+}
+
+app.listen(port, host, () => {
+  console.log(`Proposal API listening on http://${host}:${port} (serving frontend: ${existsSync(distDir)})`);
 });
