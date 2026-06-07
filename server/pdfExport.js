@@ -167,11 +167,16 @@ function ensureCompleteLatexDocument(source, title) {
     return normalizeCompleteLatexDocument(source);
   }
 
+  const tikz = /\\begin\{tikzpicture\}/.test(source)
+    ? '\\usepackage{tikz}\n\\usetikzlibrary{arrows.meta,positioning,shapes.geometric}\n'
+    : '';
+
   return String.raw`\documentclass[11pt]{article}
 \usepackage[margin=1in]{geometry}
 \usepackage[hidelinks]{hyperref}
 \usepackage{enumitem}
-\setlist{nosep}
+${compactSpacingLines('').join('\n')}
+${tikz}\setlist{nosep}
 \title{${escapeLatex(title)}}
 \author{}
 \date{}
@@ -212,25 +217,58 @@ function normalizeCompleteLatexDocument(source) {
     return true;
   });
 
-  const normalizedPreamble = ensureDefaultPreamble([documentClass, ...preamble, ...movedPreamble]);
+  const normalizedPreamble = ensureDefaultPreamble([documentClass, ...preamble, ...movedPreamble], source);
 
   return `${dedupeLines(normalizedPreamble).join('\n')}\n\\begin{document}\n${cleanBody.join('\n').trim()}\n\\end{document}\n`;
 }
 
-function ensureDefaultPreamble(lines) {
-  const source = lines.join('\n');
-  const next = [...lines];
+// Compress whitespace so a dense proposal fits in 3 pages, using only base
+// LaTeX (no extra packages like titlesec, which may not be installed).
+function compactSpacingLines(existing = '') {
+  const lines = [];
+  if (!/\\@startsection\{section\}/.test(existing)) {
+    lines.push('\\makeatletter');
+    lines.push(
+      '\\renewcommand\\section{\\@startsection{section}{1}{\\z@}{-1.2ex \\@plus -0.3ex \\@minus -0.2ex}{0.5ex \\@plus 0.1ex}{\\normalfont\\large\\bfseries}}'
+    );
+    lines.push(
+      '\\renewcommand\\subsection{\\@startsection{subsection}{2}{\\z@}{-1ex \\@plus -0.2ex}{0.3ex \\@plus 0.1ex}{\\normalfont\\normalsize\\bfseries}}'
+    );
+    lines.push('\\makeatother');
+  }
+  lines.push('\\setlength{\\parskip}{2pt}');
+  lines.push('\\setlength{\\parindent}{0pt}');
+  return lines;
+}
 
-  if (!/\\usepackage(?:\[[^\]]*\])?\{geometry\}/.test(source)) {
+function ensureDefaultPreamble(lines, fullText = '') {
+  const next = [...lines];
+  const preambleText = next.join('\n');
+  const documentText = `${preambleText}\n${fullText}`;
+
+  if (!/\\usepackage(?:\[[^\]]*\])?\{geometry\}/.test(preambleText)) {
     next.push('\\usepackage[margin=1in]{geometry}');
   }
 
-  if (!/\\usepackage(?:\[[^\]]*\])?\{hyperref\}/.test(source)) {
+  if (!/\\usepackage(?:\[[^\]]*\])?\{hyperref\}/.test(preambleText)) {
     next.push('\\usepackage[hidelinks]{hyperref}');
   }
 
-  if (!/\\usepackage(?:\[[^\]]*\])?\{enumitem\}/.test(source)) {
+  if (!/\\usepackage(?:\[[^\]]*\])?\{enumitem\}/.test(preambleText)) {
     next.push('\\usepackage{enumitem}');
+  }
+
+  next.push(...compactSpacingLines(preambleText));
+
+  // The drafting prompt asks for a TikZ figure; make sure the package and the
+  // libraries it uses are loaded even if the model forgot the preamble line.
+  if (/\\begin\{tikzpicture\}/.test(documentText)) {
+    if (!/\\usepackage(?:\[[^\]]*\])?\{tikz\}/.test(preambleText)) {
+      next.push('\\usepackage{tikz}');
+    }
+    if (!/\\usetikzlibrary\{/.test(preambleText)) {
+      next.push('\\usetikzlibrary{arrows.meta,positioning,shapes.geometric}');
+    }
   }
 
   return next;

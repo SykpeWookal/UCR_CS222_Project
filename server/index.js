@@ -4,13 +4,22 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import express from 'express';
+import multer from 'multer';
 import { proposalLatexToPdf } from './pdfExport.js';
-import { answerAgentQuestion, generateProposal, reviseProposal, startAgentSession } from './proposalGenerator.js';
+import { extractPdfText } from './pdfText.js';
+import {
+  answerAgentQuestion,
+  generateProposal,
+  recommendReferences,
+  reviseProposal,
+  startAgentSession
+} from './proposalGenerator.js';
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
 const host = process.env.HOST || '0.0.0.0';
 const distDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 app.use(cors({ origin: process.env.CORS_ORIGIN || true }));
 app.use(express.json({ limit: '1mb' }));
@@ -75,6 +84,45 @@ app.post('/api/proposal', async (request, response) => {
   } catch (error) {
     response.status(500).json({
       error: 'Proposal generation failed.',
+      detail: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+app.post('/api/agent/references', async (request, response) => {
+  try {
+    const payload = request.body || {};
+
+    if (!String(payload.topic || payload.title || '').trim()) {
+      response.status(400).json({ error: 'Topic is required.' });
+      return;
+    }
+
+    response.json(await recommendReferences(payload));
+  } catch (error) {
+    response.status(500).json({
+      error: 'Reference recommendation failed.',
+      detail: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+app.post('/api/references/upload', upload.single('file'), async (request, response) => {
+  try {
+    if (!request.file) {
+      response.status(400).json({ error: 'A PDF file is required.' });
+      return;
+    }
+
+    const text = await extractPdfText(request.file.buffer);
+    response.json({
+      filename: request.file.originalname,
+      chars: text.length,
+      text: text.slice(0, 8000)
+    });
+  } catch (error) {
+    response.status(500).json({
+      error: 'PDF parsing failed.',
       detail: error instanceof Error ? error.message : String(error)
     });
   }

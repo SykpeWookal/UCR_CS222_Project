@@ -1,18 +1,22 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ArrowRight,
+  BookOpen,
   Check,
   CheckCircle2,
   Download,
+  ExternalLink,
   FileText,
   Loader2,
   MessageSquare,
   Pencil,
   Plus,
   RefreshCw,
+  Search,
   Send,
   Sparkles,
   Trash2,
+  Upload,
   Wand2,
   X
 } from 'lucide-react';
@@ -66,6 +70,14 @@ export default function RedesignView({ agent }) {
     addSource,
     updateSource,
     removeSource,
+    recommendedRefs,
+    uploadedRefs,
+    refsLoading,
+    findReferences,
+    toggleRecommendedRef,
+    uploadReference,
+    toggleUploadedRef,
+    removeUploadedRef,
     result,
     versions,
     coverage,
@@ -89,8 +101,15 @@ export default function RedesignView({ agent }) {
   const [editValue, setEditValue] = useState('');
   const [commentingField, setCommentingField] = useState(null);
   const [commentText, setCommentText] = useState('');
+  const fileInputRef = useRef(null);
 
   const coveragePct = coverage.total ? Math.round((coverage.covered / coverage.total) * 100) : 0;
+
+  function onPickFile(event) {
+    const file = event.target.files?.[0];
+    if (file) uploadReference(file);
+    event.target.value = '';
+  }
 
   function startEditing(suggestion) {
     setEditingField(suggestion.field);
@@ -358,27 +377,96 @@ export default function RedesignView({ agent }) {
 
           <section className="rd-card">
             <div className="rd-card-head">
-              <h3>Sources / prior work</h3>
-              <button className="rd-btn small" type="button" onClick={addSource}>
-                <Plus size={14} aria-hidden="true" /> Add
-              </button>
-            </div>
-            {sources.length ? (
-              <div className="rd-sources">
-                {sources.map((source) => (
-                  <div className="rd-source" key={source.id}>
-                    <input placeholder="Title" value={source.title} onChange={(event) => updateSource(source.id, 'title', event.target.value)} />
-                    <input placeholder="Link/note" value={source.link} onChange={(event) => updateSource(source.id, 'link', event.target.value)} />
-                    <input placeholder="Used for" value={source.usedFor} onChange={(event) => updateSource(source.id, 'usedFor', event.target.value)} />
-                    <button className="rd-btn icon" type="button" onClick={() => removeSource(source.id)} aria-label="Remove">
-                      <Trash2 size={14} aria-hidden="true" />
-                    </button>
-                  </div>
-                ))}
+              <h3>External references</h3>
+              <div className="rd-art-actions">
+                <button className="rd-btn small" type="button" onClick={() => findReferences()} disabled={refsLoading}>
+                  {refsLoading ? <Loader2 className="spin" size={14} aria-hidden="true" /> : <Search size={14} aria-hidden="true" />}
+                  Find references
+                </button>
+                <button className="rd-btn small" type="button" onClick={() => fileInputRef.current?.click()} disabled={status === 'uploading'}>
+                  {status === 'uploading' ? <Loader2 className="spin" size={14} aria-hidden="true" /> : <Upload size={14} aria-hidden="true" />}
+                  Upload PDF
+                </button>
+                <button className="rd-btn small" type="button" onClick={addSource}>
+                  <Plus size={14} aria-hidden="true" /> Add manually
+                </button>
+                <input ref={fileInputRef} type="file" accept="application/pdf,.pdf" hidden onChange={onPickFile} />
               </div>
+            </div>
+
+            <p className="rd-refs-hint">
+              AI-suggested references are starting points — open the link to verify before citing. Tick “Use” to include a reference in the proposal.
+            </p>
+
+            <h4>AI-recommended <span>{recommendedRefs.length}</span></h4>
+            {recommendedRefs.length ? (
+              <ul className="rd-ref-list">
+                {recommendedRefs.map((ref) => (
+                  <li key={ref.id} className={ref.use ? 'used' : ''}>
+                    <label className="rd-ref-use">
+                      <input type="checkbox" checked={ref.use} onChange={() => toggleRecommendedRef(ref.id)} />
+                    </label>
+                    <div className="rd-ref-body">
+                      <div className="rd-ref-head">
+                        <strong>{ref.title}</strong>
+                        <span className={`rd-conf ${String(ref.relevance || 'medium').toLowerCase()}`}>{ref.relevance}</span>
+                      </div>
+                      <small className="rd-ref-meta">
+                        {[ref.authors, ref.year, ref.venue].filter(Boolean).join(' · ')}
+                      </small>
+                      {ref.reason ? <small className="rd-ref-reason">{ref.reason}</small> : null}
+                      <a className="rd-ref-link" href={ref.url} target="_blank" rel="noreferrer">
+                        <ExternalLink size={12} aria-hidden="true" /> Open
+                      </a>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             ) : (
-              <EmptyState text="Add prior work to ground novelty and references." compact />
+              <EmptyState text={refsLoading ? 'Finding references…' : 'Structure an idea or click “Find references”.'} compact />
             )}
+
+            {uploadedRefs.length ? (
+              <>
+                <h4>Your uploaded PDFs <span>{uploadedRefs.length}</span></h4>
+                <ul className="rd-ref-list">
+                  {uploadedRefs.map((ref) => (
+                    <li key={ref.id} className={ref.use ? 'used' : ''}>
+                      <label className="rd-ref-use">
+                        <input type="checkbox" checked={ref.use} onChange={() => toggleUploadedRef(ref.id)} />
+                      </label>
+                      <div className="rd-ref-body">
+                        <div className="rd-ref-head">
+                          <strong><BookOpen size={13} aria-hidden="true" /> {ref.filename}</strong>
+                          <button className="rd-btn icon" type="button" onClick={() => removeUploadedRef(ref.id)} aria-label="Remove">
+                            <Trash2 size={13} aria-hidden="true" />
+                          </button>
+                        </div>
+                        <small className="rd-ref-meta">{ref.chars} characters extracted and shared with the agent.</small>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+
+            {sources.length ? (
+              <>
+                <h4>Manual sources <span>{sources.length}</span></h4>
+                <div className="rd-sources">
+                  {sources.map((source) => (
+                    <div className="rd-source" key={source.id}>
+                      <input placeholder="Title" value={source.title} onChange={(event) => updateSource(source.id, 'title', event.target.value)} />
+                      <input placeholder="Link/note" value={source.link} onChange={(event) => updateSource(source.id, 'link', event.target.value)} />
+                      <input placeholder="Used for" value={source.usedFor} onChange={(event) => updateSource(source.id, 'usedFor', event.target.value)} />
+                      <button className="rd-btn icon" type="button" onClick={() => removeSource(source.id)} aria-label="Remove">
+                        <Trash2 size={14} aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : null}
           </section>
 
           <section className="rd-card">

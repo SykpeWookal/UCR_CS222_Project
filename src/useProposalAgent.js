@@ -71,19 +71,6 @@ function labelForField(field) {
   return found?.[1] || field;
 }
 
-function sourcesToReferencesText(sources, baseReferences) {
-  const lines = sources
-    .filter((source) => source.title || source.note || source.link)
-    .map((source, index) => {
-      const parts = [`[S${index + 1}] ${source.title || 'Untitled source'}`];
-      if (source.link) parts.push(`(${source.link})`);
-      if (source.usedFor) parts.push(`— used for ${source.usedFor}`);
-      if (source.note) parts.push(`: ${source.note}`);
-      return parts.join(' ');
-    });
-  return [baseReferences, ...lines].filter(Boolean).join('\n');
-}
-
 async function postJson(url, body) {
   const response = await fetch(url, {
     method: 'POST',
@@ -152,6 +139,9 @@ export function useProposalAgent() {
   const [customNote, setCustomNote] = useState('');
   const [rejectedSuggestions, setRejectedSuggestions] = useState([]);
   const [sources, setSources] = useState([]);
+  const [recommendedRefs, setRecommendedRefs] = useState([]);
+  const [uploadedRefs, setUploadedRefs] = useState([]);
+  const [refsLoading, setRefsLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [versions, setVersions] = useState([]);
   const [selectedWeaknessKeys, setSelectedWeaknessKeys] = useState([]);
@@ -221,6 +211,8 @@ export function useProposalAgent() {
         setDecisions(snapshot.decisions || []);
         setQuestions(snapshot.questions || []);
         setSources(snapshot.sources || []);
+        setRecommendedRefs(snapshot.recommendedRefs || []);
+        setUploadedRefs(snapshot.uploadedRefs || []);
         setResult(snapshot.result || null);
         setVersions(snapshot.versions || []);
         setRunLog(snapshot.runLog || []);
@@ -250,6 +242,8 @@ export function useProposalAgent() {
       decisions,
       questions,
       sources,
+      recommendedRefs,
+      uploadedRefs,
       result,
       versions,
       runLog,
@@ -270,6 +264,8 @@ export function useProposalAgent() {
     decisions,
     questions,
     sources,
+    recommendedRefs,
+    uploadedRefs,
     result,
     versions,
     runLog,
@@ -311,10 +307,35 @@ export function useProposalAgent() {
     };
   }, [coverage, highWeakCount, result, versions, markedFinal]);
 
+  function composeReferencesText() {
+    const lines = [];
+    sources
+      .filter((source) => source.title || source.note || source.link)
+      .forEach((source) => {
+        const parts = [source.title || 'Untitled source'];
+        if (source.link) parts.push(source.link);
+        if (source.usedFor) parts.push(`— used for ${source.usedFor}`);
+        if (source.note) parts.push(`: ${source.note}`);
+        lines.push(parts.join(' '));
+      });
+    recommendedRefs
+      .filter((ref) => ref.use)
+      .forEach((ref) => {
+        lines.push(
+          `${ref.authors ? `${ref.authors}, ` : ''}${ref.title}${ref.year ? ` (${ref.year})` : ''}${
+            ref.venue ? `, ${ref.venue}` : ''
+          } [${ref.relevance} relevance] ${ref.url}`
+        );
+      });
+    uploadedRefs
+      .filter((ref) => ref.use)
+      .forEach((ref) => {
+        lines.push(`Uploaded reference "${ref.filename}". Excerpt: ${(ref.text || '').slice(0, 1200)}`);
+      });
+    return [project.references, ...lines].filter(Boolean).join('\n');
+  }
+
   function composeProjectForSend() {
-    const referencesWithSources = sources.length
-      ? sourcesToReferencesText(sources, project.references)
-      : project.references;
     const domainNote = domainInput.trim()
       ? `${project.problem ? `${project.problem}\n` : ''}Domain/constraints: ${domainInput.trim()}`
       : project.problem;
@@ -322,7 +343,7 @@ export function useProposalAgent() {
       ...project,
       topic: project.topic || project.title || topicInput,
       problem: domainNote,
-      references: referencesWithSources,
+      references: composeReferencesText(),
       requirements: DEFAULT_REQUIREMENTS
     };
   }
@@ -365,6 +386,19 @@ export function useProposalAgent() {
             `Review ${(data.fieldSuggestions || []).length} fields and ${(data.decisions || []).length} decision card(s).`
           )
         ]);
+
+        // Fire-and-forget: discover recommended references for the rough idea.
+        setRecommendedRefs([]);
+        setRefsLoading(true);
+        postJson('/api/agent/references', { topic: trimmed })
+          .then((refData) => {
+            const refs = (refData.references || []).map((ref) => ({ ...ref, use: false }));
+            setRecommendedRefs(refs);
+            pushTranscript('references', refData.transcript);
+            setRunLog((current) => [...current, logEntry('References', `Agent suggested ${refs.length} reference(s).`)]);
+          })
+          .catch(() => {})
+          .finally(() => setRefsLoading(false));
       } catch (requestError) {
         setError(readError(requestError));
       } finally {
@@ -529,6 +563,77 @@ export function useProposalAgent() {
 
   const removeSource = useCallback((id) => {
     setSources((current) => current.filter((source) => source.id !== id));
+  }, []);
+
+  const findReferences = useCallback(
+    async (topicOverride) => {
+      const topic = String(topicOverride || project.title || project.topic || topicInput || '').trim();
+      if (!topic) return;
+      setRefsLoading(true);
+      setError('');
+      try {
+        const data = await postJson('/api/agent/references', { topic, context: project.problem });
+        const refs = (data.references || []).map((ref) => ({ ...ref, use: false }));
+        setRecommendedRefs(refs);
+        pushTranscript('references', data.transcript);
+        pushLog('References', `Agent suggested ${refs.length} reference(s) for "${topic}".`);
+      } catch (requestError) {
+        setError(readError(requestError));
+      } finally {
+        setRefsLoading(false);
+      }
+    },
+    [project.title, project.topic, project.problem, topicInput, pushLog, pushTranscript]
+  );
+
+  const toggleRecommendedRef = useCallback((id) => {
+    setRecommendedRefs((current) =>
+      current.map((ref) => (ref.id === id ? { ...ref, use: !ref.use } : ref))
+    );
+    clearArtifacts();
+  }, [clearArtifacts]);
+
+  const uploadReference = useCallback(
+    async (file) => {
+      if (!file) return;
+      setStatus('uploading');
+      setError('');
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const response = await fetch('/api/references/upload', { method: 'POST', body: form });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || data.error || 'Upload failed.');
+        }
+        setUploadedRefs((current) => [
+          ...current,
+          {
+            id: `up-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            filename: data.filename,
+            chars: data.chars,
+            text: data.text,
+            use: true
+          }
+        ]);
+        pushLog('Upload', `Uploaded reference "${data.filename}" (${data.chars} chars extracted).`);
+        clearArtifacts();
+      } catch (requestError) {
+        setError(readError(requestError));
+      } finally {
+        setStatus('idle');
+      }
+    },
+    [pushLog, clearArtifacts]
+  );
+
+  const toggleUploadedRef = useCallback((id) => {
+    setUploadedRefs((current) => current.map((ref) => (ref.id === id ? { ...ref, use: !ref.use } : ref)));
+    clearArtifacts();
+  }, [clearArtifacts]);
+
+  const removeUploadedRef = useCallback((id) => {
+    setUploadedRefs((current) => current.filter((ref) => ref.id !== id));
   }, []);
 
   async function refreshPdf(latex, title) {
@@ -867,6 +972,8 @@ I reviewed the generated code and proposal artifacts. I am responsible for the f
     setCustomNote('');
     setRejectedSuggestions([]);
     setSources([]);
+    setRecommendedRefs([]);
+    setUploadedRefs([]);
     setRevisionFeedback('');
     setRunLog([]);
     setTranscripts([]);
@@ -930,6 +1037,15 @@ I reviewed the generated code and proposal artifacts. I am responsible for the f
     addSource,
     updateSource,
     removeSource,
+    // references (AI-recommended + uploaded PDFs)
+    recommendedRefs,
+    uploadedRefs,
+    refsLoading,
+    findReferences,
+    toggleRecommendedRef,
+    uploadReference,
+    toggleUploadedRef,
+    removeUploadedRef,
     // draft + revise
     result,
     versions,

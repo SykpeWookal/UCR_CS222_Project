@@ -59,18 +59,32 @@ Return strict JSON with this shape:
 
 Rules:
 - The proposal artifact must be LaTeX, not Markdown.
-- Return a complete LaTeX document with \\documentclass[11pt]{article}, 1-inch margins, title, sections, and bibliography/source notes.
+- Return a complete LaTeX document with \\documentclass[11pt]{article}, 1-inch margins, title, sections, and a plain references list.
 - Cover every required section explicitly: Title, Abstract, Keywords, Introduction (motivation + gap + target context), Novelty and relation to prior work, Goal, Methods (agent workflow with stages, inputs, outputs, feedback loop, revision loop, stopping criteria), Figure with caption, Expected results and milestones, Evaluation, Risks and mitigation, Resources, References/assumptions.
-- Use compile-safe LaTeX. Avoid minted, shell-escape, external images, custom fonts, or packages that require extra system tools.
-- Do not use \\includegraphics or reference external image files. Build figures directly in LaTeX with text boxes, minipages, tabular layouts, lists, or simple arrows.
-- Write the final artifact as a research proposal, not as a short course implementation report.
-- Keep the proposed research plan credible, appropriately scoped, and supported by milestones, resources, risks, and evaluation criteria.
+
+LENGTH AND DENSITY (critical — must fit 3 pages):
+- HARD LIMIT: the entire document MUST fit within 3 pages at 11pt with 1-inch margins (references included). Aim to fill close to 3 pages but NEVER overflow to a 4th page — tighten prose instead.
+- Target approximately 800-950 words of body text in total across all sections. Be concise and information-dense; never pad with filler.
+- Write tight paragraphs of 2-3 sentences. Use compact itemize/enumerate lists for milestones, risks, evaluation metrics, and resources to save vertical space. Keep the Abstract to 3-4 sentences.
+- Maximize information per sentence with concrete specifics: named prior work, metric targets (e.g., macro-F1 >= 0.70), dataset/study details, exact agent stages with inputs/outputs, and time-boxed milestones in weeks. Prefer numbers over vague language.
+- Keep the References list to 4-5 entries.
+
+FIGURE (compact, important):
+- Include exactly one COMPACT figure built with TikZ inside a figure environment with a \\caption and \\label, referenced in the Methods text (e.g., "Figure~\\ref{fig:workflow} shows ...").
+- The figure should occupy at most about one quarter of a page. Use \\usepackage{tikz} and \\usetikzlibrary{arrows.meta, positioning}. Draw a small workflow/architecture/evaluation diagram with short labeled nodes and [-{Stealth}] arrows, fitting within the text width. Use \\small or \\footnotesize inside the figure to keep it compact.
+- Do not use \\includegraphics or external image files.
+
+COMPILE-SAFETY:
+- Use compile-safe LaTeX only: article class, geometry, hyperref, enumitem, tikz. Avoid minted, shell-escape, custom fonts, or packages needing extra tools.
+- Do not invent citations. Do NOT use \\cite, \\bibliography, or BibTeX. Write references as a plain enumerated/itemized list (author, title, venue, year) in the References section.
+- Do NOT use math-only symbols in normal text. Use plain words (write "to" instead of an arrow) or wrap math in $...$. Never place \\rightarrow, Greek letters, or subscripts/superscripts (_ or ^) in plain text (TikZ arrows are fine inside tikzpicture).
+
+CONTENT QUALITY:
+- Write the final artifact as a research proposal, not a short course implementation report.
+- Keep the plan credible, appropriately scoped, and supported by milestones, resources, risks, and evaluation criteria.
 - The Novelty section must name relevant prior work or comparable tools and state precisely what is new or different.
-- Mark unsupported claims as assumptions. Never state vague comparatives like "better" or "state of the art" without a source or a metric.
-- Include a concrete agent workflow when the method involves an agent.
-- Include at least one LaTeX-native figure, diagram, workflow chart, or architecture sketch with a caption referenced in the text.
-- Do not invent citations. Do NOT use \\cite, \\bibliography, or BibTeX. Write references as a plain list (author, title, venue, year) in the References section.
-- Do NOT use math-only symbols in normal text. Use plain words (write "to" instead of an arrow) or wrap math in $...$. Never place \\rightarrow, Greek letters, or subscripts/superscripts (_ or ^) in plain text.`;
+- When the input provides recommended or uploaded references, integrate the most relevant ones into Introduction/Novelty and list them in References.
+- Mark unsupported claims as assumptions. Never state vague comparatives like "better" or "state of the art" without a source or a metric.`;
 
 const REVISE_SYSTEM_PROMPT = `You are the revision step of a research proposal agent.
 
@@ -97,6 +111,7 @@ Rules:
 - Only change what the selected weaknesses and feedback require; preserve already-strong sections.
 - Each changelog entry must map to a selected weakness or to the student feedback.
 - Strengthen novelty, evaluation metrics, and unsupported claims first when they are selected.
+- Keep the document within 3 pages at 11pt (about 900-1100 words of body text); tighten or trim elsewhere so revisions never push it past 3 pages. Keep the TikZ figure compact.
 - Do not invent citations; mark unsupported claims as assumptions. Do NOT use \\cite or \\bibliography; write references as a plain list.
 - Do NOT use math-only symbols in normal text (no \\rightarrow, Greek letters, or _/^ outside $...$); use plain words or wrap math in $...$.`;
 
@@ -261,6 +276,133 @@ export async function generateProposal(payload) {
   return generateLocally(project, checklist);
 }
 
+const REFERENCES_SYSTEM_PROMPT = `You recommend academic references for a research proposal topic.
+
+Return strict JSON:
+{
+  "references": [
+    {
+      "title": "exact paper or book title",
+      "authors": "short author list, e.g. Habernal et al.",
+      "year": "publication year",
+      "venue": "conference/journal/publisher",
+      "relevance": "High | Medium | Low",
+      "reason": "one sentence on why it is relevant to the topic"
+    }
+  ]
+}
+
+Rules:
+- Return 6 to 8 real, well-known references relevant to the topic when possible.
+- Prefer seminal/highly-cited works and recent surveys; rank by relevance.
+- Do NOT fabricate DOIs or URLs; omit links (the app adds a search link).
+- Be accurate with titles; if unsure, choose a closely related well-known work and mark relevance Medium/Low.`;
+
+export async function recommendReferences(payload) {
+  const topic = clean(payload.topic) || clean(payload.title);
+
+  if (!topic) {
+    throw new Error('Topic is required.');
+  }
+
+  if (process.env.LLM_API_KEY && process.env.LLM_API_URL) {
+    const model = clean(process.env.LLM_MODEL);
+
+    if (!model) {
+      throw new Error('LLM_MODEL is required when LLM_API_KEY and LLM_API_URL are configured.');
+    }
+
+    const promptPayload = { topic, context: clean(payload.context) };
+    const content = await callModel({
+      systemPrompt: REFERENCES_SYSTEM_PROMPT,
+      payload: promptPayload,
+      model,
+      temperature: 0.3,
+      maxTokens: 3000
+    });
+    const parsed = parseJsonContent(content);
+
+    return {
+      mode: 'api',
+      provider: process.env.LLM_API_URL,
+      references: normalizeReferences(parsed.references),
+      transcript: { prompt: { task: 'references', ...promptPayload }, rawResponse: content }
+    };
+  }
+
+  return {
+    mode: 'local-fallback',
+    provider: 'template',
+    references: fallbackReferences(topic),
+    transcript: {
+      prompt: { task: 'references', topic },
+      rawResponse: 'Generated by local fallback because LLM_API_KEY or LLM_API_URL is not configured.'
+    }
+  };
+}
+
+function scholarUrl(title) {
+  return `https://scholar.google.com/scholar?q=${encodeURIComponent(title)}`;
+}
+
+function normalizeReferences(references) {
+  if (!Array.isArray(references)) return [];
+  return references
+    .map((item, index) => {
+      const title = clean(item.title);
+      if (!title) return null;
+      const relevance = clean(item.relevance);
+      return {
+        id: `ref-${index + 1}-${Date.now().toString(36)}`,
+        title,
+        authors: clean(item.authors),
+        year: clean(item.year),
+        venue: clean(item.venue),
+        relevance: /^(high|medium|low)$/i.test(relevance) ? titleCase(relevance) : 'Medium',
+        reason: clean(item.reason),
+        url: scholarUrl(title)
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 10);
+}
+
+function fallbackReferences(topic) {
+  const t = shortTopic(topic);
+  return [
+    {
+      id: `ref-1-${Date.now().toString(36)}`,
+      title: `A survey of methods related to ${t}`,
+      authors: 'Various',
+      year: '2023',
+      venue: 'Survey',
+      relevance: 'High',
+      reason: 'Background and taxonomy for the proposed direction.',
+      url: scholarUrl(`survey ${t}`)
+    },
+    {
+      id: `ref-2-${Date.now().toString(36)}`,
+      title: `Evaluation methodology for ${t}`,
+      authors: 'Various',
+      year: '2022',
+      venue: 'Workshop',
+      relevance: 'Medium',
+      reason: 'Informs the evaluation plan and metrics.',
+      url: scholarUrl(`evaluation ${t}`)
+    },
+    {
+      id: `ref-3-${Date.now().toString(36)}`,
+      title: `Agent and LLM workflow patterns`,
+      authors: 'Various',
+      year: '2024',
+      venue: 'arXiv',
+      relevance: 'Medium',
+      reason: 'Supports the critique-and-revision agent design.',
+      url: scholarUrl('LLM agent critique revision workflow')
+    }
+  ];
+}
+
 export async function reviseProposal(payload) {
   const project = normalizePayload(payload);
   const requirements = project.requirements || DEFAULT_REQUIREMENTS;
@@ -312,7 +454,8 @@ async function reviseWithApi({ project, checklist, previousLatex, selectedWeakne
     systemPrompt: REVISE_SYSTEM_PROMPT,
     payload: promptPayload,
     model,
-    temperature: 0.2
+    temperature: 0.2,
+    maxTokens: 12000
   });
   const parsed = parseJsonContent(content);
   const coerced = coerceResult(parsed, project, checklist);
@@ -446,7 +589,8 @@ async function refineProjectWithApi(payload) {
     systemPrompt: QUESTION_SYSTEM_PROMPT,
     payload,
     model,
-    temperature: 0.2
+    temperature: 0.2,
+    maxTokens: 6000
   });
   const parsed = parseJsonContent(content);
   const nextProject = mergeProject(payload.project, normalizePayload(parsed.project || {}));
@@ -492,7 +636,8 @@ async function generateWithApi(project, checklist) {
     systemPrompt: SYSTEM_PROMPT,
     payload: promptPayload,
     model,
-    temperature: 0.2
+    temperature: 0.2,
+    maxTokens: 12000
   });
   const parsed = parseJsonContent(content);
 
@@ -507,17 +652,27 @@ async function generateWithApi(project, checklist) {
   };
 }
 
-async function callModel({ systemPrompt, payload, model, temperature }) {
+async function callModel({ systemPrompt, payload, model, temperature, maxTokens }) {
   if (getProvider() === 'gemini') {
-    return callGemini({ systemPrompt, payload, model, temperature });
+    return callGemini({ systemPrompt, payload, model, temperature, maxTokens });
   }
 
-  return callOpenAiCompatible({ systemPrompt, payload, model, temperature });
+  return callOpenAiCompatible({ systemPrompt, payload, model, temperature, maxTokens });
 }
 
-async function callGemini({ systemPrompt, payload, model, temperature }) {
+// GPT-5 family (and other reasoning models) reject custom temperature and use
+// max_completion_tokens instead of max_tokens.
+function isReasoningModel(model) {
+  return /(^|[-/])(gpt-5|o[134])/i.test(clean(model));
+}
+
+async function callGemini({ systemPrompt, payload, model, temperature, maxTokens }) {
   const baseUrl = clean(process.env.LLM_API_URL) || 'https://generativelanguage.googleapis.com/v1beta';
   const endpoint = `${baseUrl.replace(/\/$/, '')}/models/${encodeURIComponent(model)}:generateContent`;
+  const generationConfig = { temperature, responseMimeType: 'application/json' };
+  if (maxTokens) {
+    generationConfig.maxOutputTokens = maxTokens;
+  }
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
@@ -534,10 +689,7 @@ async function callGemini({ systemPrompt, payload, model, temperature }) {
           parts: [{ text: JSON.stringify(payload, null, 2) }]
         }
       ],
-      generationConfig: {
-        temperature,
-        responseMimeType: 'application/json'
-      }
+      generationConfig
     })
   });
 
@@ -559,21 +711,33 @@ async function callGemini({ systemPrompt, payload, model, temperature }) {
   return content;
 }
 
-async function callOpenAiCompatible({ systemPrompt, payload, model, temperature }) {
+async function callOpenAiCompatible({ systemPrompt, payload, model, temperature, maxTokens }) {
+  const reasoning = isReasoningModel(model);
+  const body = {
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: JSON.stringify(payload, null, 2) }
+    ]
+  };
+
+  // Reasoning models only support the default temperature; others keep the
+  // requested low temperature for stable JSON.
+  if (!reasoning && typeof temperature === 'number') {
+    body.temperature = temperature;
+  }
+
+  if (maxTokens) {
+    body.max_completion_tokens = maxTokens;
+  }
+
   const response = await fetch(process.env.LLM_API_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${process.env.LLM_API_KEY}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      model,
-      temperature,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: JSON.stringify(payload, null, 2) }
-      ]
-    })
+    body: JSON.stringify(body)
   });
 
   const data = await response.json();
