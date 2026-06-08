@@ -1,0 +1,418 @@
+{
+  "exportedAt": "2026-06-08T22:29:14.638Z",
+  "health": {
+    "ok": true,
+    "mode": "api-ready",
+    "provider": "openai-compatible",
+    "model": "gpt-5.5"
+  },
+  "roughIdea": "An agentic, rubric-aware system that turns a rough research idea into a complete, citation-grounded research proposal through human-in-the-loop critique and a verifiable revision loop",
+  "domain": "CS NLP course final project; single student; one quarter; LLM API with a local deterministic fallback",
+  "decisionRecord": {
+    "accepted": [
+      {
+        "field": "title",
+        "label": "Concise project title",
+        "confidence": "High"
+      },
+      {
+        "field": "keywords",
+        "label": "Keywords",
+        "confidence": "High"
+      },
+      {
+        "field": "problem",
+        "label": "Motivation, gap, and target context",
+        "confidence": "High"
+      },
+      {
+        "field": "novelty",
+        "label": "Novelty relative to prior work",
+        "confidence": "High"
+      },
+      {
+        "field": "method",
+        "label": "Agent workflow",
+        "confidence": "High"
+      },
+      {
+        "field": "figure",
+        "label": "Architecture diagram",
+        "confidence": "High"
+      },
+      {
+        "field": "abstract",
+        "label": "Abstract",
+        "confidence": "High"
+      },
+      {
+        "field": "goal",
+        "label": "Project Goal",
+        "confidence": "High"
+      },
+      {
+        "field": "expectedResults",
+        "label": "Expected Results",
+        "confidence": "High"
+      },
+      {
+        "field": "risks",
+        "label": "Risks / Mitigation",
+        "confidence": "High"
+      },
+      {
+        "field": "timeline",
+        "label": "Research Milestones",
+        "confidence": "High"
+      },
+      {
+        "field": "resources",
+        "label": "Resources",
+        "confidence": "High"
+      }
+    ],
+    "edited": [
+      {
+        "field": "evaluation",
+        "label": "Evaluation plan",
+        "value": "Evaluate on 12 rough ideas across 3 domains. Metrics: required-section coverage (target 13/13), number of high-severity unsupported claims (target 0 after one revision), and a 1-5 human rubric score for novelty/method/evaluation (target mean >= 4). Compare draft v1 vs revised v2 (before/after) and against a single-shot ChatGPT baseline."
+      }
+    ],
+    "rejected": [
+      {
+        "field": "references",
+        "label": "Sources / Assumptions",
+        "reason": "Use AI-recommended + uploaded references instead."
+      }
+    ],
+    "commented": [
+      {
+        "field": "novelty",
+        "comment": "Be explicit about prior work: contrast with general LLM chat (ChatGPT), one-shot proposal generators, and compliance tools like Civio. Our difference is rubric-grounded coverage checks plus a measurable before/after revision loop with weak-claim detection.",
+        "before": "The system differs from generic writing assistants, retrieval-augmented chatbots, and automated critique tools by treating the proposal rubric as an executable ",
+        "after": "Prior work and comparable tools include general-purpose LLM chat systems such as ChatGPT, one-shot proposal generators, retrieval-augmented writing assistants, "
+      }
+    ]
+  },
+  "usedReferences": [
+    {
+      "id": "ref-1-mq5s2f0o",
+      "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+      "authors": "Lewis et al.",
+      "year": "2020",
+      "venue": "NeurIPS",
+      "relevance": "High",
+      "reason": "Foundational work for grounding generated proposal text in retrieved sources rather than relying only on model memory.",
+      "url": "https://scholar.google.com/scholar?q=Retrieval-Augmented%20Generation%20for%20Knowledge-Intensive%20NLP%20Tasks"
+    },
+    {
+      "id": "ref-2-mq5s2f0o",
+      "title": "ALCE: Enabling Large Language Models to Generate Text with Citations",
+      "authors": "Gao et al.",
+      "year": "2023",
+      "venue": "EMNLP",
+      "relevance": "High",
+      "reason": "Directly relevant to building citation-grounded generation and evaluating whether generated claims are supported by cited evidence.",
+      "url": "https://scholar.google.com/scholar?q=ALCE%3A%20Enabling%20Large%20Language%20Models%20to%20Generate%20Text%20with%20Citations"
+    },
+    {
+      "id": "ref-3-mq5s2f0o",
+      "title": "Self-Refine: Iterative Refinement with Self-Feedback",
+      "authors": "Madaan et al.",
+      "year": "2023",
+      "venue": "NeurIPS",
+      "relevance": "High",
+      "reason": "Provides a strong template for an iterative draft-critique-revise loop that can be adapted to research proposal writing.",
+      "url": "https://scholar.google.com/scholar?q=Self-Refine%3A%20Iterative%20Refinement%20with%20Self-Feedback"
+    },
+    {
+      "id": "ref-4-mq5s2f0o",
+      "title": "Reflexion: Language Agents with Verbal Reinforcement Learning",
+      "authors": "Shinn et al.",
+      "year": "2023",
+      "venue": "NeurIPS",
+      "relevance": "High",
+      "reason": "Supports the idea of an agentic system that records critiques and uses them to improve future revisions.",
+      "url": "https://scholar.google.com/scholar?q=Reflexion%3A%20Language%20Agents%20with%20Verbal%20Reinforcement%20Learning"
+    }
+  ],
+  "uploaded": {
+    "filename": "reading-note.pdf",
+    "chars": 270
+  },
+  "finalProject": {
+    "title": "Rubric-Aware Agentic Proposal Builder with Human-in-the-Loop Critique and Verifiable Revision",
+    "topic": "An agentic, rubric-aware system that turns a rough research idea into a complete, citation-grounded research proposal through human-in-the-loop critique and a verifiable revision loop",
+    "keywords": "research proposal generation, agentic AI, rubric-aware evaluation, human-in-the-loop revision, citation grounding, verifiable LLM systems",
+    "abstract": "This project proposes an agentic, rubric-aware system that helps researchers transform a rough research idea into a complete, citation-grounded research proposal. The system decomposes proposal writing into specialized stages: requirement extraction, section planning, literature and source grounding, draft generation, rubric-based critique, human feedback incorporation, and verifiable revision. Unlike generic large language model writing assistants, the proposed system explicitly represents proposal requirements as a checklist and uses iterative critique loops to detect missing sections, unsupported claims, weak novelty statements, and evaluation gaps. A human-in-the-loop interface allows users to accept, reject, or modify agent suggestions while preserving an auditable revision history. The expected outcome is a prototype that improves proposal completeness, alignment with rubrics, citation traceability, and user efficiency compared with baseline LLM drafting workflows.",
+    "problem": "CS students writing their first research proposal often struggle to translate a rough idea into a complete, rubric-compliant, citation-grounded proposal. TAs who review these proposals need to determine not only whether the final text is complete, but also whether claims are supported and whether revisions addressed critique findings. Generic LLM assistants can draft fluent text, but they often omit rubric requirements, hallucinate or weaken citations, and provide limited auditable revision support. This creates a need for a proposal-building workflow that supports novice researchers while giving reviewers a verifiable run log of requirements, evidence, critiques, user decisions, and revisions.\nDomain/constraints: CS NLP course final project; single student; one quarter; LLM API with a local deterministic fallback",
+    "novelty": "Prior work and comparable tools include general-purpose LLM chat systems such as ChatGPT, one-shot proposal generators, retrieval-augmented writing assistants, and compliance-oriented tools such as Civio. These systems can help draft text or check broad requirements, but they typically do not treat a proposal rubric as an executable specification that drives generation, critique, and revision. This project is novel in combining rubric-grounded coverage checks, citation-grounded claim tracking, weak-claim detection, human-in-the-loop decision capture, and a measurable before/after revision loop. Each revision is linked to checklist items, source evidence, critique findings, and user decisions so that improvement in proposal quality can be verified rather than merely asserted.",
+    "goal": "The goal is to design, implement, and evaluate a prototype system that converts a rough research idea into a complete research proposal while improving rubric coverage, citation grounding, revision transparency, and user control compared with a single-pass LLM drafting baseline.",
+    "method": "Use intake, planning, retrieval, drafting, rubric critique, human decision, and revision agents operating over a structured JSON proposal state and audit log.",
+    "figure": "Show a pipeline from user idea and rubric to requirement extraction, planning, retrieval, drafting, critique, human decisions, revision, and final proposal, with feedback loops and an evidence store.",
+    "expectedResults": "Expected results include: (1) a working prototype that accepts a rough research idea and checklist and outputs a structured proposal; (2) a rubric-to-section mapping that shows which requirements are satisfied; (3) citation-grounded claims with source metadata or source notes; (4) an iterative critique and revision mechanism that improves proposal quality over multiple turns; and (5) an evaluation report comparing the system against baseline LLM drafting. Research milestones include requirements analysis, workflow design, prototype implementation, retrieval and citation grounding integration, rubric critic development, user interface development, evaluation, and final documentation.",
+    "timeline": "Estimated 12-week timeline: Weeks 1–2: define proposal rubric, target users, evaluation criteria, and baseline workflows. Weeks 3–4: design system architecture, JSON project state, agent roles, and prompt templates. Weeks 5–6: implement intake, planning, drafting, and structured output generation. Weeks 7–8: integrate retrieval, citation metadata, and claim-source linking. Weeks 9–10: implement rubric critique, revision loop, and human decision interface. Week 11: run evaluation using sample rough ideas and human or expert ratings. Week 12: analyze results, document limitations, prepare final proposal, prototype demo, and release plan.",
+    "evaluation": "Evaluate on 12 rough ideas across 3 domains. Metrics: required-section coverage (target 13/13), number of high-severity unsupported claims (target 0 after one revision), and a 1-5 human rubric score for novelty/method/evaluation (target mean >= 4). Compare draft v1 vs revised v2 (before/after) and against a single-shot ChatGPT baseline.",
+    "risks": "Key risks include hallucinated or weak citations, overreliance on LLM-generated claims, poor retrieval quality, excessive workflow complexity, user fatigue from too many questions, and difficulty evaluating proposal quality objectively. Mitigations include using retrieval-grounded generation, requiring source metadata for factual claims, flagging unsupported claims, limiting open-ended questions to high-value missing information, maintaining an auditable revision log, comparing against clear baselines, and using both automatic rubric checks and human ratings.",
+    "resources": "Required resources include access to an LLM API or open-source language model, a retrieval source such as Semantic Scholar, Crossref, OpenAlex, arXiv, institutional databases, or a curated paper corpus, a vector database or document index, a web or notebook interface, structured JSON storage for project state, and evaluation participants or expert reviewers. The release plan should include a prototype demo, prompt and workflow templates, anonymized evaluation examples, documentation, and, where licensing allows, open-source code for the agent orchestration and rubric validation components.",
+    "references": "Lewis et al., Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks (2020), NeurIPS [High] https://scholar.google.com/scholar?q=Retrieval-Augmented%20Generation%20for%20Knowledge-Intensive%20NLP%20Tasks\nGao et al., ALCE: Enabling Large Language Models to Generate Text with Citations (2023), EMNLP [High] https://scholar.google.com/scholar?q=ALCE%3A%20Enabling%20Large%20Language%20Models%20to%20Generate%20Text%20with%20Citations\nMadaan et al., Self-Refine: Iterative Refinement with Self-Feedback (2023), NeurIPS [High] https://scholar.google.com/scholar?q=Self-Refine%3A%20Iterative%20Refinement%20with%20Self-Feedback\nShinn et al., Reflexion: Language Agents with Verbal Reinforcement Learning (2023), NeurIPS [High] https://scholar.google.com/scholar?q=Reflexion%3A%20Language%20Agents%20with%20Verbal%20Reinforcement%20Learning\nUploaded reference \"reading-note.pdf\". Excerpt: Personal reading note. Civio shows proposal/compliance workflows can become products. General LLM chat produces one-shot drafts without requirement coverage or revision evidence. Key\ngap for our project: verifiable, rubric-grounded revision with weak-claim detection.\n\n1\nCourse materials: proposal_requirements.md and grading_rubric.md (format and required sections).",
+    "requirements": "Proposal must include:\n- Project title\n- Abstract\n- Keywords\n- Motivation, gap, and target context\n- Novelty and relation to prior work\n- Project goal\n- Method or agent workflow\n- Figure or diagram with caption\n- Expected results and research milestones with timeline estimates\n- Evaluation plan\n- Risks and mitigation\n- Resources, tools, or release plan\n- References, assumptions, or source notes"
+  },
+  "coverage": {
+    "v1": {
+      "covered": 13,
+      "total": 13
+    },
+    "v2": {
+      "covered": 13,
+      "total": 13
+    }
+  },
+  "weakClaims": {
+    "v1": [
+      {
+        "claim": "The expected outcome is a prototype that improves proposal completeness, alignment with rubrics, citation traceability, and user efficiency compared with baseline LLM drafting workflows.",
+        "severity": "Medium",
+        "issue": "The draft states improvement before evaluation and includes user efficiency without a defined metric.",
+        "fix": "Frame as a hypothesis and define metrics such as required-section coverage, unsupported-claim count, citation-link presence, human rubric score, and optional time-on-task."
+      },
+      {
+        "claim": "These systems can help draft text or check broad requirements, but they typically do not treat a proposal rubric as an executable specification that drives generation, critique, and revision.",
+        "severity": "Medium",
+        "issue": "The comparative claim is plausible but broad; it needs scoped comparison to named tools or a source note.",
+        "fix": "Limit the claim to observed behavior of generic chat, one-shot generators, and the uploaded Civio note, or add a systematic comparison table during evaluation."
+      },
+      {
+        "claim": "so that improvement in proposal quality can be verified rather than merely asserted.",
+        "severity": "Low",
+        "issue": "The phrase is rhetorically strong and does not specify what counts as verification.",
+        "fix": "Replace with measurable verification criteria: checklist delta, linked critique-resolution records, citation metadata presence, and blinded human rubric ratings."
+      },
+      {
+        "claim": "using an LLM API with a local deterministic fallback",
+        "severity": "Low",
+        "issue": "The fallback mechanism is underspecified; deterministic fallback cannot replace generation unless its scope is limited.",
+        "fix": "Specify that the fallback covers checklist parsing, JSON validation, LaTeX compilation checks, and audit-log consistency, not full generative drafting."
+      }
+    ],
+    "v2": []
+  },
+  "changelog": [
+    {
+      "section": "Abstract",
+      "before": "Stated that the expected outcome improves completeness, traceability, and user efficiency relative to baselines.",
+      "after": "Reframed improvement as a hypothesis with explicit metrics and made user efficiency optional, measured by time-on-task and manual edits.",
+      "reason": "Addresses selected weakness about claiming improvement before evaluation and lacking a user-efficiency metric."
+    },
+    {
+      "section": "Novelty and Relation to Prior Work",
+      "before": "Made a broad comparative claim that comparable systems typically do not treat a proposal rubric as an executable specification.",
+      "after": "Scoped novelty to the course proposal task and made it verifiable through checklist, source-note, critique, decision, and revision-diff traceability.",
+      "reason": "Addresses selected weakness about broad comparative wording and feedback requesting verifiable novelty."
+    },
+    {
+      "section": "Expected Results and Milestones",
+      "before": "Mentioned evaluation against a baseline but did not emphasize explicit baseline setup in the milestone text.",
+      "after": "Added baseline prompt and annotation guide to weeks 1--2 and described evaluation against explicit baselines.",
+      "reason": "Addresses feedback to strengthen evaluation with explicit baselines and numbers."
+    },
+    {
+      "section": "Evaluation",
+      "before": "Compared draft version 1, revised version 2, and a single-shot LLM baseline with several targets.",
+      "after": "Defined B1 as a single-shot ChatGPT-style baseline, Ours as the full workflow, optional no-retrieval ablation, numeric targets for coverage, unsupported claims, citation links, LaTeX compilation, audit completeness, and optional efficiency measures.",
+      "reason": "Addresses both selected weakness on metrics and feedback requesting explicit baselines and numbers."
+    }
+  ],
+  "steps": [
+    {
+      "stage": "Setup",
+      "message": "Provider openai-compatible, model gpt-5.5, mode api-ready.",
+      "at": "2026-06-08T22:23:12.050Z"
+    },
+    {
+      "stage": "References",
+      "message": "Asking the agent to recommend references for the rough idea...",
+      "at": "2026-06-08T22:23:12.050Z"
+    },
+    {
+      "stage": "References",
+      "message": "Got 8 recommendations.",
+      "at": "2026-06-08T22:23:43.754Z"
+    },
+    {
+      "stage": "References",
+      "message": "USE: [High] Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+      "at": "2026-06-08T22:23:43.754Z"
+    },
+    {
+      "stage": "References",
+      "message": "USE: [High] ALCE: Enabling Large Language Models to Generate Text with Citations",
+      "at": "2026-06-08T22:23:43.754Z"
+    },
+    {
+      "stage": "References",
+      "message": "USE: [High] Self-Refine: Iterative Refinement with Self-Feedback",
+      "at": "2026-06-08T22:23:43.754Z"
+    },
+    {
+      "stage": "References",
+      "message": "USE: [High] Reflexion: Language Agents with Verbal Reinforcement Learning",
+      "at": "2026-06-08T22:23:43.754Z"
+    },
+    {
+      "stage": "Upload",
+      "message": "Creating a small PDF reference note and uploading it...",
+      "at": "2026-06-08T22:23:43.754Z"
+    },
+    {
+      "stage": "Upload",
+      "message": "Extracted 270 characters from \"reading-note.pdf\".",
+      "at": "2026-06-08T22:23:44.058Z"
+    },
+    {
+      "stage": "Intake",
+      "message": "Rough idea: \"An agentic, rubric-aware system that turns a rough research idea into a complete, citation-grounded research proposal through human-in-the-loop critique and a verifiable revision loop\"",
+      "at": "2026-06-08T22:23:44.059Z"
+    },
+    {
+      "stage": "Extract",
+      "message": "Structuring the idea into fields, decisions, and questions...",
+      "at": "2026-06-08T22:23:44.059Z"
+    },
+    {
+      "stage": "Extract",
+      "message": "Agent returned 14 field suggestions, 5 decisions, 4 questions.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Accept",
+      "message": "Accepted Concise project title.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Accept",
+      "message": "Accepted Keywords.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Accept",
+      "message": "Accepted Motivation, gap, and target context.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Accept",
+      "message": "Accepted Novelty relative to prior work.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Accept",
+      "message": "Accepted Agent workflow.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Edit",
+      "message": "Edited Evaluation plan to add explicit baselines/metrics.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Accept",
+      "message": "Accepted Architecture diagram.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Accept",
+      "message": "Accepted Abstract.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Accept",
+      "message": "Accepted Project Goal.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Accept",
+      "message": "Accepted Expected Results.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Accept",
+      "message": "Accepted Risks / Mitigation.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Accept",
+      "message": "Accepted Research Milestones.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Accept",
+      "message": "Accepted Resources.",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Reject",
+      "message": "Rejected suggested Sources / Assumptions (using curated references).",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Comment",
+      "message": "Sending a comment on Novelty back to the agent...",
+      "at": "2026-06-08T22:24:54.644Z"
+    },
+    {
+      "stage": "Comment",
+      "message": "Agent revised the Novelty field from the comment.",
+      "at": "2026-06-08T22:25:36.863Z"
+    },
+    {
+      "stage": "Answer",
+      "message": "Answering clarifying question: \"Who is the primary intended user: students, academic researchers, grant-writing teams, or applied R&D teams?\"",
+      "at": "2026-06-08T22:25:36.863Z"
+    },
+    {
+      "stage": "Answer",
+      "message": "Integrated the answer into \"problem\".",
+      "at": "2026-06-08T22:26:45.029Z"
+    },
+    {
+      "stage": "Draft",
+      "message": "Generating proposal v1 (gpt-5.5)...",
+      "at": "2026-06-08T22:26:45.030Z"
+    },
+    {
+      "stage": "Draft",
+      "message": "v1 in 88s — coverage 13/13, 4 weak claim(s), 9258 chars.",
+      "at": "2026-06-08T22:28:13.122Z"
+    },
+    {
+      "stage": "Critique",
+      "message": "Selected weakness: [Medium] The expected outcome is a prototype that improves proposal completeness, alignment with rubrics, citation traceability, and user efficiency compared with baseline LLM drafting workflows.",
+      "at": "2026-06-08T22:28:13.122Z"
+    },
+    {
+      "stage": "Critique",
+      "message": "Selected weakness: [Medium] These systems can help draft text or check broad requirements, but they typically do not treat a proposal rubric as an executable specification that drives generation, critique, and revision.",
+      "at": "2026-06-08T22:28:13.122Z"
+    },
+    {
+      "stage": "Revise",
+      "message": "Applying revision with feedback...",
+      "at": "2026-06-08T22:28:13.122Z"
+    },
+    {
+      "stage": "Revise",
+      "message": "v2 in 61s — coverage 13/13 -> 13/13, changelog 4, remaining weak 0.",
+      "at": "2026-06-08T22:29:14.119Z"
+    },
+    {
+      "stage": "Export",
+      "message": "Compiling final PDF...",
+      "at": "2026-06-08T22:29:14.119Z"
+    },
+    {
+      "stage": "Export",
+      "message": "Wrote proposal.pdf (134216 bytes) and proposal.tex.",
+      "at": "2026-06-08T22:29:14.635Z"
+    }
+  ]
+}
